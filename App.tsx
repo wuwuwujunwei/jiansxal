@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Activity, 
   Settings, 
@@ -14,12 +14,15 @@ import {
   Target,
   AlertCircle,
   TrendingUp,
-  Moon
+  Moon,
+  Ruler,
+  Camera,
+  X
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line } from 'recharts';
 import { AppState, DailyLog, WeeklyCheckIn, WarningLevel } from './types';
 import { INITIAL_STATE, STORAGE_KEY, SCENARIO_MODES } from './constants';
-import { calculateBMI, getStatusAlert, adjustMacrosPriority, getMacroGramsFromPct, cleanupOldLogs } from './utils';
+import { calculateBMI, getStatusAlert, adjustMacrosPriority, getMacroGramsFromPct, cleanupOldLogs, getAvgRHR } from './utils';
 
 // --- Branding Component ---
 const ModeFitLogo = ({ size = 20, className = "" }: { size?: number, className?: string }) => (
@@ -40,6 +43,7 @@ const ModeFitLogo = ({ size = 20, className = "" }: { size?: number, className?:
 
 const App: React.FC = () => {
   const [isDark, setIsDark] = useState(window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const matcher = window.matchMedia('(prefers-color-scheme: dark)');
@@ -62,6 +66,9 @@ const App: React.FC = () => {
   const [weightTimeRange, setWeightTimeRange] = useState<7 | 30>(7);
   const [sleepTimeRange, setSleepTimeRange] = useState<7 | 30>(7);
 
+  const [dailyForm, setDailyForm] = useState({ weight: '', sleep: '', rhr: '' });
+  const [weeklyForm, setWeeklyForm] = useState({ waist: '', leftArm: '', rightArm: '', photos: [] as string[] });
+
   useEffect(() => {
     const cleanedDaily = cleanupOldLogs(state.dailyLogs) as DailyLog[];
     const cleanedWeekly = cleanupOldLogs(state.weeklyLogs) as WeeklyCheckIn[];
@@ -76,6 +83,15 @@ const App: React.FC = () => {
   const macroGrams = useMemo(() => getMacroGramsFromPct(tdee, macroPercentages), [tdee, macroPercentages]);
   const statusAlert = useMemo(() => getStatusAlert(state.dailyLogs), [state.dailyLogs]);
 
+  const avgHistoryRHR = useMemo(() => getAvgRHR(state.dailyLogs), [state.dailyLogs]);
+  const rhrLiveWarning = useMemo(() => {
+    const val = Number(dailyForm.rhr);
+    if (!val || avgHistoryRHR === 0) return null;
+    if (val > avgHistoryRHR * 1.15) return "⚠️ 心率波动严重异常，建议今日强制休息！";
+    if (val > avgHistoryRHR * 1.10) return "⚠️ 心率波动异常，建议今日训练强度减半。";
+    return null;
+  }, [dailyForm.rhr, avgHistoryRHR]);
+
   const theme = {
     bg: isDark ? 'bg-[#121212]' : 'bg-[#F5F5F7]',
     card: isDark ? 'bg-[#1E1E1E]' : 'bg-white',
@@ -84,6 +100,32 @@ const App: React.FC = () => {
     border: isDark ? 'border-[#2A2A2A]' : 'border-slate-200',
     headerBg: isDark ? 'bg-[#121212]/95' : 'bg-white/95',
     nav: isDark ? 'bg-[#121212]/98' : 'bg-white/98'
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    // Fixed: Explicitly cast Array.from result to File[] to avoid 'unknown' type error when calling readAsDataURL.
+    // File objects inherit from Blob, resolving the "Argument of type 'unknown' is not assignable to parameter of type 'Blob'" error.
+    (Array.from(files) as File[]).forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setWeeklyForm(prev => ({
+          ...prev,
+          photos: [...prev.photos, base64String]
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removePhoto = (index: number) => {
+    setWeeklyForm(prev => ({
+      ...prev,
+      photos: prev.photos.filter((_, i) => i !== index)
+    }));
   };
 
   const updateProfile = (updates: Partial<typeof state.profile>) => {
@@ -121,25 +163,58 @@ const App: React.FC = () => {
     });
   };
 
-  const addDailyLog = (logData: any) => {
+  const addDailyLog = () => {
+    const weight = Number(dailyForm.weight);
+    const sleep = Number(dailyForm.sleep);
+    const rhr = Number(dailyForm.rhr);
+    if (weight <= 0) return;
+
     const newLog: DailyLog = {
-      ...logData,
       id: crypto.randomUUID(),
       date: new Date().toISOString(),
+      weight,
+      sleep,
+      rhr,
+      fatigue: 0,
+      performance: 0,
       isEditable: true,
       macrosReached: { carbs: false, fat: false, protein: false }
     };
+
     setState(prev => ({
       ...prev,
       dailyLogs: [newLog, ...prev.dailyLogs],
-      profile: { ...prev.profile, weight: logData.weight, bmi: calculateBMI(logData.weight, prev.profile.height) }
+      profile: { ...prev.profile, weight, bmi: calculateBMI(weight, prev.profile.height) }
     }));
+    setDailyForm({ weight: '', sleep: '', rhr: '' });
+    setView('dashboard');
+  };
+
+  const addWeeklyLog = () => {
+    const waist = Number(weeklyForm.waist);
+    const leftArm = Number(weeklyForm.leftArm);
+    const rightArm = Number(weeklyForm.rightArm);
+    if (waist <= 0) return;
+
+    const newLog: WeeklyCheckIn = {
+      id: crypto.randomUUID(),
+      date: new Date().toISOString(),
+      waist,
+      leftArm,
+      rightArm,
+      isEditable: true,
+      photos: weeklyForm.photos
+    };
+    setState(prev => ({
+      ...prev,
+      weeklyLogs: [newLog, ...prev.weeklyLogs]
+    }));
+    setWeeklyForm({ waist: '', leftArm: '', rightArm: '', photos: [] });
     setView('dashboard');
   };
 
   return (
     <div id="root" className={theme.bg}>
-      {/* 1. 顶部状态栏 */}
       <header className={`app-header ${theme.headerBg} border-b ${theme.border} px-4 py-3`}>
         <div className="flex justify-between items-center h-10">
           <div className="flex items-center gap-2">
@@ -164,10 +239,8 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* 2. 核心内容区域 */}
       <div className="scroll-content no-scrollbar">
         <main className="px-4 py-4 space-y-4 max-w-md mx-auto">
-          {/* Health Alert */}
           <div className={`p-3.5 rounded-2xl border flex items-center gap-3 transition-all ${
             statusAlert.level === WarningLevel.RED 
               ? 'bg-red-500/15 border-red-500/30' 
@@ -183,7 +256,6 @@ const App: React.FC = () => {
 
           {view === 'dashboard' && (
             <>
-              {/* Weight Chart */}
               <div className={`p-4 rounded-2xl ${theme.card} ${theme.border} border shadow-sm space-y-4`}>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
@@ -209,7 +281,6 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Sleep Chart */}
               <div className={`p-4 rounded-2xl ${theme.card} ${theme.border} border shadow-sm space-y-4`}>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
@@ -235,7 +306,6 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Nutrition Toggle */}
               <section className={`p-4 rounded-2xl ${theme.card} ${theme.border} border shadow-sm`}>
                 <div className="flex justify-between items-center mb-4 px-1">
                   <h3 className="text-[10px] font-black uppercase tracking-widest opacity-60">今日营养闭环</h3>
@@ -277,7 +347,6 @@ const App: React.FC = () => {
                 <p className={`text-[11px] ${theme.subtext}`}>选择预设或手动输入当日热量预算</p>
               </div>
 
-              {/* 专项修复：还原热量自定义输入框 */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase opacity-40 px-1 tracking-widest">当日热量预算 (KCAL)</label>
                 <div className="relative">
@@ -339,30 +408,96 @@ const App: React.FC = () => {
              <div className="space-y-4">
                <div className={`p-1 flex rounded-xl ${isDark ? 'bg-black/40' : 'bg-slate-200'}`}>
                   <button onClick={() => setActiveLogTab('daily')} className={`flex-1 py-2.5 text-[11px] font-black rounded-lg transition-all ${activeLogTab === 'daily' ? `${theme.card} ${theme.text} shadow-sm` : theme.subtext}`}>每日打卡</button>
-                  <button onClick={() => setActiveLogTab('weekly')} className={`flex-1 py-2.5 text-[11px] font-black rounded-lg transition-all ${activeLogTab === 'weekly' ? `${theme.card} ${theme.text} shadow-sm` : theme.subtext}`}>每周围度</button>
+                  <button onClick={() => setActiveLogTab('weekly')} className={`flex-1 py-2.5 text-[11px] font-black rounded-lg transition-all ${activeLogTab === 'weekly' ? `${theme.card} ${theme.text} shadow-sm` : theme.subtext}`}>每周维度</button>
                </div>
+               
                {activeLogTab === 'daily' ? (
                  <div className={`p-5 rounded-2xl ${theme.card} ${theme.border} border shadow-lg space-y-4`}>
                     {[{ k: 'weight', l: '晨重 (KG)', p: '0.0' }, { k: 'sleep', l: '睡眠 (H)', p: '0.0' }, { k: 'rhr', l: '晨脉 (BPM)', p: '0' }].map(f => (
                       <div key={f.k} className="space-y-1">
                         <label className="text-[10px] font-black uppercase opacity-40 px-1 tracking-widest">{f.l}</label>
-                        <input type="number" placeholder={f.p} id={`input-${f.k}`} className={`w-full p-4 rounded-xl border-2 font-black text-xl outline-none focus:border-blue-500 transition-all ${theme.card} ${theme.border} ${theme.text}`} />
+                        <input 
+                          type="number" 
+                          placeholder={f.p} 
+                          value={(dailyForm as any)[f.k]} 
+                          onChange={(e) => setDailyForm({...dailyForm, [f.k]: e.target.value})}
+                          className={`w-full p-4 rounded-xl border-2 font-black text-xl outline-none focus:border-blue-500 transition-all ${theme.card} ${theme.border} ${theme.text}`} 
+                        />
+                        {f.k === 'rhr' && rhrLiveWarning && (
+                           <div className="mt-2 p-3 bg-yellow-500/15 border border-yellow-500/30 rounded-xl flex items-center gap-2">
+                             <ShieldAlert size={16} className="text-yellow-500 flex-shrink-0" />
+                             <p className="text-[11px] font-bold text-yellow-600 leading-tight">{rhrLiveWarning}</p>
+                           </div>
+                        )}
                       </div>
                     ))}
-                    {/* 专项修复：强化打卡按钮可见性 */}
                     <button 
-                      onClick={() => {
-                        const weight = Number((document.getElementById('input-weight') as HTMLInputElement).value);
-                        const sleep = Number((document.getElementById('input-sleep') as HTMLInputElement).value);
-                        const rhr = Number((document.getElementById('input-rhr') as HTMLInputElement).value);
-                        if(weight > 0) addDailyLog({ weight, sleep, rhr });
-                      }} 
-                      className="w-full bg-accent-gradient py-5 rounded-xl font-bold text-white text-base shadow-lg shadow-blue-500/30 active:scale-95 transition-all border-none"
+                      onClick={addDailyLog} 
+                      className="w-full bg-accent-gradient py-5 rounded-xl font-black text-[#00E676] text-base shadow-lg shadow-blue-500/30 active:scale-95 transition-all border-none"
                     >
                       完成打卡
                     </button>
                  </div>
-               ) : <div className="text-center py-10 opacity-30 italic text-xs">围度追踪维护中...</div>}
+               ) : (
+                 <div className={`p-5 rounded-2xl ${theme.card} ${theme.border} border shadow-lg space-y-4`}>
+                    <div className="flex items-center gap-2 mb-2">
+                       <Ruler size={18} className="text-orange-500" />
+                       <h3 className={`text-sm font-black ${theme.text}`}>身体围度监控</h3>
+                    </div>
+                    {[{ k: 'waist', l: '腰围 (CM)', p: '0.0' }, { k: 'leftArm', l: '左臂围 (CM)', p: '0.0' }, { k: 'rightArm', l: '右臂围 (CM)', p: '0.0' }].map(f => (
+                      <div key={f.k} className="space-y-1">
+                        <label className="text-[10px] font-black uppercase opacity-40 px-1 tracking-widest">{f.l}</label>
+                        <input 
+                          type="number" 
+                          placeholder={f.p} 
+                          value={(weeklyForm as any)[f.k]}
+                          onChange={(e) => setWeeklyForm({...weeklyForm, [f.k]: e.target.value})}
+                          className={`w-full p-4 rounded-xl border-2 font-black text-xl outline-none focus:border-blue-500 transition-all ${theme.card} ${theme.border} ${theme.text}`} 
+                        />
+                      </div>
+                    ))}
+
+                    {/* 照片上传部分 */}
+                    <div className="space-y-2 mt-2">
+                      <label className="text-[10px] font-black uppercase opacity-40 px-1 tracking-widest">状态对比照片</label>
+                      <div className="flex flex-wrap gap-2">
+                        {weeklyForm.photos.map((photo, idx) => (
+                          <div key={idx} className="relative w-20 h-20 rounded-xl overflow-hidden border border-slate-500/20 group">
+                            <img src={photo} alt={`fitness-${idx}`} className="w-full h-full object-cover" />
+                            <button 
+                              onClick={() => removePhoto(idx)}
+                              className="absolute top-1 right-1 p-1 bg-red-500 rounded-full text-white shadow-md active:scale-75 transition-transform"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                        <button 
+                          onClick={() => fileInputRef.current?.click()}
+                          className={`w-20 h-20 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 active:scale-95 transition-all ${theme.border} ${isDark ? 'bg-black/20' : 'bg-slate-50'}`}
+                        >
+                          <Camera size={20} className="text-blue-500 opacity-60" />
+                          <span className="text-[9px] font-black uppercase opacity-40">添加照片</span>
+                        </button>
+                      </div>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handlePhotoUpload} 
+                        accept="image/*" 
+                        multiple 
+                        className="hidden" 
+                      />
+                    </div>
+
+                    <button 
+                      onClick={addWeeklyLog} 
+                      className="w-full bg-accent-gradient py-5 rounded-xl font-black text-[#00E676] text-base shadow-lg shadow-orange-500/20 active:scale-95 transition-all border-none"
+                    >
+                      保存周数据
+                    </button>
+                 </div>
+               )}
              </div>
           )}
 
@@ -377,6 +512,31 @@ const App: React.FC = () => {
                     <button onClick={() => setState(p => ({...p, dailyLogs: p.dailyLogs.filter(l => l.id !== log.id)}))} className="p-2 text-red-500 active:scale-75 transition-transform"><Trash2 size={18} /></button>
                  </div>
                )) : <div className="py-10 text-center opacity-30 italic text-xs">暂无历史记录</div>}
+               
+               {/* 历史记录中显示周记录 */}
+               {state.weeklyLogs.length > 0 && (
+                 <div className="pt-4 border-t border-slate-500/10 space-y-3">
+                   <h4 className="text-[10px] font-black uppercase opacity-40 tracking-widest px-1">周记录历史</h4>
+                   {state.weeklyLogs.map(log => (
+                     <div key={log.id} className={`p-4 rounded-xl border ${theme.card} ${theme.border} space-y-3 shadow-sm`}>
+                        <div className="flex justify-between items-center">
+                          <div className="text-[9px] font-extrabold opacity-50">{new Date(log.date).toLocaleDateString()}</div>
+                          <button onClick={() => setState(p => ({...p, weeklyLogs: p.weeklyLogs.filter(l => l.id !== log.id)}))} className="p-1 text-red-500 active:scale-75 transition-transform"><Trash2 size={14} /></button>
+                        </div>
+                        <div className={`text-[13px] font-black ${theme.text}`}>
+                          腰围: {log.waist}cm | 臂围: {log.leftArm}/{log.rightArm}cm
+                        </div>
+                        {log.photos && log.photos.length > 0 && (
+                          <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
+                            {log.photos.map((p, i) => (
+                              <img key={i} src={p} alt="progress" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                            ))}
+                          </div>
+                        )}
+                     </div>
+                   ))}
+                 </div>
+               )}
             </div>
           )}
           
@@ -402,7 +562,6 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {/* 3. 底部导航栏 */}
       <nav className={`app-nav ${theme.nav} backdrop-blur-xl border-t ${theme.border} px-2 pt-2 shadow-[0_-8px_30px_rgba(0,0,0,0.1)]`}>
         <div className="max-w-md mx-auto flex justify-around items-center">
           {[

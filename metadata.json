@@ -1,5 +1,7 @@
 {
   "name": "健醒 (WakeFit)",
   "description": "A high-performance fitness monitoring application designed to track morning weight, sleep, RHR, and body measurements with automated recovery alerts and metabolic adjustment triggers.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }
