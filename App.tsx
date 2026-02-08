@@ -60,6 +60,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<'dashboard' | 'logs' | 'nutrition' | 'history' | 'settings'>('dashboard');
   const [activeLogTab, setActiveLogTab] = useState<'daily' | 'weekly'>('daily');
   const [weightTimeRange, setWeightTimeRange] = useState<7 | 30>(7);
+  const [sleepTimeRange, setSleepTimeRange] = useState<7 | 30>(7); // 专项修复：找回时间范围状态
 
   useEffect(() => {
     const cleanedDaily = cleanupOldLogs(state.dailyLogs) as DailyLog[];
@@ -81,7 +82,7 @@ const App: React.FC = () => {
     text: isDark ? 'text-white' : 'text-[#000000]',
     subtext: isDark ? 'text-slate-400' : 'text-slate-600',
     border: isDark ? 'border-[#2A2A2A]' : 'border-slate-200',
-    headerBg: isDark ? 'bg-[#121212]/90' : 'bg-white/90',
+    headerBg: isDark ? 'bg-[#121212]/95' : 'bg-white/95',
     nav: isDark ? 'bg-[#121212]/98' : 'bg-white/98'
   };
 
@@ -130,7 +131,7 @@ const App: React.FC = () => {
 
   return (
     <div id="root" className={theme.bg}>
-      {/* 1. 重构的顶部状态栏 (Non-fixed within flex-column) */}
+      {/* 1. 顶部状态栏 - 视觉强化版 */}
       <header className={`app-header ${theme.headerBg} border-b ${theme.border} px-4 py-3`}>
         <div className="flex justify-between items-center h-10">
           <div className="flex items-center gap-2">
@@ -142,20 +143,20 @@ const App: React.FC = () => {
           </button>
         </div>
         
-        <div className="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          <div className={`flex-shrink-0 px-3 py-1 rounded-xl flex items-center gap-2 ${isDark ? 'bg-white/10' : 'bg-black/5'}`}>
-            <span className={`text-[12px] font-extrabold uppercase tracking-tight ${theme.text}`}>
+        <div className="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+          <div className={`flex-shrink-0 px-3 py-1.5 rounded-xl flex items-center gap-2 ${isDark ? 'bg-white/10' : 'bg-black/5'}`}>
+            <span className={`text-[13px] font-extrabold uppercase tracking-tight ${theme.text}`}>
               {state.profile.selectedMode || '默认'}
             </span>
             <div className={`w-1 h-1 rounded-full ${isDark ? 'bg-white/40' : 'bg-black/20'}`}></div>
-            <span className={`text-[12px] font-extrabold ${theme.text}`}>BMI {state.profile.bmi || '--'}</span>
+            <span className={`text-[13px] font-extrabold ${theme.text}`}>BMI {state.profile.bmi || '--'}</span>
             <div className={`w-1 h-1 rounded-full ${isDark ? 'bg-white/40' : 'bg-black/20'}`}></div>
-            <span className={`text-[12px] font-black text-blue-500`}>{tdee} <span className="text-[10px]">kcal</span></span>
+            <span className={`text-[13px] font-black text-blue-500`}>{tdee} <span className="text-[10px]">kcal</span></span>
           </div>
         </div>
       </header>
 
-      {/* 2. 核心内容区域 (Flex: 1, Overflow-Y: Auto) */}
+      {/* 2. 核心内容区域 */}
       <div className="scroll-content no-scrollbar">
         <main className="px-4 py-4 space-y-4 max-w-md mx-auto">
           {/* Health Alert */}
@@ -189,13 +190,39 @@ const App: React.FC = () => {
                 </div>
                 <div className="h-32 w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={state.dailyLogs.slice().reverse()}>
+                    <LineChart data={state.dailyLogs.slice(0, weightTimeRange).reverse()}>
                       <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#333' : '#eee'} vertical={false} />
                       <XAxis dataKey="date" hide />
                       <YAxis domain={['auto', 'auto']} hide />
                       <Tooltip contentStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#fff', border: 'none', borderRadius: '8px', fontSize: '11px', color: isDark ? '#fff' : '#000', fontWeight: 'bold' }} />
                       <Line type="monotone" dataKey="weight" stroke="#3b82f6" strokeWidth={3} dot={{ r: 3, fill: '#3b82f6' }} activeDot={{ r: 5 }} />
                     </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* 专项修复：找回睡眠趋势图组件 */}
+              <div className={`p-4 rounded-2xl ${theme.card} ${theme.border} border shadow-sm space-y-4`}>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <Moon className="text-orange-500" size={16} />
+                    <h3 className="text-[10px] font-black uppercase tracking-widest opacity-60">睡眠监控</h3>
+                  </div>
+                  <div className={`flex p-0.5 rounded-lg ${isDark ? 'bg-black/20' : 'bg-slate-100'}`}>
+                    {[7, 30].map(r => (
+                      <button key={r} onClick={() => setSleepTimeRange(r as any)} className={`px-2.5 py-1 text-[10px] font-black rounded-md transition-all ${sleepTimeRange === r ? 'bg-orange-600 text-white' : theme.subtext}`}>{r}D</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="h-28 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={state.dailyLogs.slice(0, sleepTimeRange).reverse()}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#333' : '#eee'} vertical={false} />
+                      <XAxis dataKey="date" hide />
+                      <YAxis hide domain={[0, 12]} />
+                      <Tooltip cursor={{fill: isDark ? '#2a2a2a' : '#f1f5f9'}} contentStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#fff', border: 'none', borderRadius: '8px', fontSize: '11px', color: isDark ? '#fff' : '#000', fontWeight: 'bold' }} />
+                      <Bar dataKey="sleep" fill="#f97316" radius={[4, 4, 0, 0]} />
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>
@@ -323,10 +350,30 @@ const App: React.FC = () => {
                )) : <div className="py-10 text-center opacity-30 italic text-xs">暂无历史记录</div>}
             </div>
           )}
+          
+          {view === 'settings' && (
+            <section className={`p-5 rounded-2xl ${theme.card} ${theme.border} border shadow-lg space-y-6`}>
+              <div className="flex items-center gap-3">
+                <User size={20} className="text-blue-500" />
+                <h2 className={`text-lg font-black ${theme.text}`}>个人档案</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase opacity-40 px-1 tracking-widest">身高 (CM)</label>
+                  <input type="number" value={state.profile.height} onChange={(e) => updateProfile({ height: Number(e.target.value) })} className={`w-full p-4 rounded-xl border font-black text-lg outline-none ${theme.card} ${theme.border} ${theme.text}`} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase opacity-40 px-1 tracking-widest">年龄 (YR)</label>
+                  <input type="number" value={state.profile.age} onChange={(e) => updateProfile({ age: Number(e.target.value) })} className={`w-full p-4 rounded-xl border font-black text-lg outline-none ${theme.card} ${theme.border} ${theme.text}`} />
+                </div>
+              </div>
+              <button onClick={() => setView('dashboard')} className="w-full bg-accent-gradient py-4 rounded-xl font-black text-white text-sm shadow-md active:scale-95 transition-all">保存设置</button>
+            </section>
+          )}
         </main>
       </div>
 
-      {/* 3. 底部导航栏 (Compact Nav) */}
+      {/* 3. 底部导航栏 */}
       <nav className={`app-nav ${theme.nav} backdrop-blur-xl border-t ${theme.border} px-2 pt-2 shadow-[0_-8px_30px_rgba(0,0,0,0.1)]`}>
         <div className="max-w-md mx-auto flex justify-around items-center">
           {[

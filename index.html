@@ -39,13 +39,14 @@
             overflow: hidden;
         }
 
-        /* 顶部状态栏：固定高度，不参与滚动 */
+        /* 顶部状态栏：固定高度，不参与滚动。增加 Padding 以避开摄像头 */
         .app-header {
             flex-shrink: 0;
             z-index: 1000;
-            padding-top: var(--safe-top);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            padding-top: calc(var(--safe-top) + 45px); /* 专项修复：大幅增加避让空间 */
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
         }
 
         /* 核心滚动区域：占据剩余所有空间 */
