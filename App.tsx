@@ -60,7 +60,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<'dashboard' | 'logs' | 'nutrition' | 'history' | 'settings'>('dashboard');
   const [activeLogTab, setActiveLogTab] = useState<'daily' | 'weekly'>('daily');
   const [weightTimeRange, setWeightTimeRange] = useState<7 | 30>(7);
-  const [sleepTimeRange, setSleepTimeRange] = useState<7 | 30>(7); // 专项修复：找回时间范围状态
+  const [sleepTimeRange, setSleepTimeRange] = useState<7 | 30>(7);
 
   useEffect(() => {
     const cleanedDaily = cleanupOldLogs(state.dailyLogs) as DailyLog[];
@@ -101,6 +101,14 @@ const App: React.FC = () => {
     }
   };
 
+  const handleManualTdeeChange = (val: number) => {
+    const matchedMode = SCENARIO_MODES.find(m => m.calories === val);
+    updateProfile({ 
+      tdee: val, 
+      selectedMode: matchedMode ? matchedMode.name : '自定义模式' 
+    });
+  };
+
   const toggleMacroGoal = (macroKey: 'carbs' | 'fat' | 'protein') => {
     if (state.dailyLogs.length === 0) return;
     setState(prev => {
@@ -131,7 +139,7 @@ const App: React.FC = () => {
 
   return (
     <div id="root" className={theme.bg}>
-      {/* 1. 顶部状态栏 - 视觉强化版 */}
+      {/* 1. 顶部状态栏 */}
       <header className={`app-header ${theme.headerBg} border-b ${theme.border} px-4 py-3`}>
         <div className="flex justify-between items-center h-10">
           <div className="flex items-center gap-2">
@@ -175,7 +183,7 @@ const App: React.FC = () => {
 
           {view === 'dashboard' && (
             <>
-              {/* Weight Chart (Compact) */}
+              {/* Weight Chart */}
               <div className={`p-4 rounded-2xl ${theme.card} ${theme.border} border shadow-sm space-y-4`}>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
@@ -201,7 +209,7 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* 专项修复：找回睡眠趋势图组件 */}
+              {/* Sleep Chart */}
               <div className={`p-4 rounded-2xl ${theme.card} ${theme.border} border shadow-sm space-y-4`}>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
@@ -227,7 +235,7 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Nutrition Toggle (Compact) */}
+              {/* Nutrition Toggle */}
               <section className={`p-4 rounded-2xl ${theme.card} ${theme.border} border shadow-sm`}>
                 <div className="flex justify-between items-center mb-4 px-1">
                   <h3 className="text-[10px] font-black uppercase tracking-widest opacity-60">今日营养闭环</h3>
@@ -266,7 +274,21 @@ const App: React.FC = () => {
             <section className={`p-5 rounded-2xl ${theme.card} ${theme.border} border shadow-lg space-y-6`}>
               <div className="space-y-1">
                 <h2 className={`text-lg font-black ${theme.text}`}>场景模式管理</h2>
-                <p className={`text-[11px] ${theme.subtext}`}>根据当日训练安排快速切换预算</p>
+                <p className={`text-[11px] ${theme.subtext}`}>选择预设或手动输入当日热量预算</p>
+              </div>
+
+              {/* 专项修复：还原热量自定义输入框 */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase opacity-40 px-1 tracking-widest">当日热量预算 (KCAL)</label>
+                <div className="relative">
+                   <input 
+                    type="number" 
+                    value={tdee} 
+                    onChange={(e) => handleManualTdeeChange(Number(e.target.value))}
+                    className={`w-full p-4 pr-16 rounded-xl border-2 font-black text-2xl outline-none focus:border-blue-500 transition-all ${theme.card} ${theme.border} ${theme.text}`}
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black opacity-30">KCAL</div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -309,6 +331,7 @@ const App: React.FC = () => {
                     </div>
                   ))}
               </div>
+              <button onClick={() => setView('dashboard')} className="w-full bg-accent-gradient py-4 rounded-xl font-black text-white text-sm shadow-md active:scale-95">确定配置</button>
             </section>
           )}
 
@@ -326,12 +349,18 @@ const App: React.FC = () => {
                         <input type="number" placeholder={f.p} id={`input-${f.k}`} className={`w-full p-4 rounded-xl border-2 font-black text-xl outline-none focus:border-blue-500 transition-all ${theme.card} ${theme.border} ${theme.text}`} />
                       </div>
                     ))}
-                    <button onClick={() => {
-                      const weight = Number((document.getElementById('input-weight') as HTMLInputElement).value);
-                      const sleep = Number((document.getElementById('input-sleep') as HTMLInputElement).value);
-                      const rhr = Number((document.getElementById('input-rhr') as HTMLInputElement).value);
-                      if(weight > 0) addDailyLog({ weight, sleep, rhr });
-                    }} className="w-full bg-accent-gradient py-4 rounded-xl font-black text-white text-sm shadow-md active:scale-95">完成打卡</button>
+                    {/* 专项修复：强化打卡按钮可见性 */}
+                    <button 
+                      onClick={() => {
+                        const weight = Number((document.getElementById('input-weight') as HTMLInputElement).value);
+                        const sleep = Number((document.getElementById('input-sleep') as HTMLInputElement).value);
+                        const rhr = Number((document.getElementById('input-rhr') as HTMLInputElement).value);
+                        if(weight > 0) addDailyLog({ weight, sleep, rhr });
+                      }} 
+                      className="w-full bg-accent-gradient py-5 rounded-xl font-bold text-white text-base shadow-lg shadow-blue-500/30 active:scale-95 transition-all border-none"
+                    >
+                      完成打卡
+                    </button>
                  </div>
                ) : <div className="text-center py-10 opacity-30 italic text-xs">围度追踪维护中...</div>}
              </div>
