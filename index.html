@@ -3,25 +3,56 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FitFocus - 健身数据专家</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>ModeFit - 智能健身场景管家</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+        
+        :root {
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            --header-height: 120px;
+            --nav-height: 85px;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0f172a;
-            color: #f8fafc;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden; /* 防止整个页面滚动，改由内部区域滚动 */
         }
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 4px;
+
+        .glass-header {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            padding-top: var(--safe-top);
         }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #1e293b;
+
+        .scroll-container {
+            height: 100vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-top: calc(var(--header-height) + var(--safe-top));
+            padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 20px);
         }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 10px;
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .bg-accent-gradient {
+            background: linear-gradient(135deg, #3b82f6 0%, #f97316 100%);
         }
     </style>
 <script type="importmap">
