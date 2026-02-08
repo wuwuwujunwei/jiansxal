@@ -4,21 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ModeFit - 智能健身场景管家</title>
+    <title>ModeFit - 极速健身场景管家</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
         
         :root {
-            --safe-top: env(safe-area-inset-top, 20px);
+            --safe-top: env(safe-area-inset-top, 0px);
             --safe-bottom: env(safe-area-inset-bottom, 0px);
-            --header-height: 130px; /* 增加高度预留给模式文字 */
-            --nav-height: 80px;
         }
 
         * {
             -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
+            box-sizing: border-box;
         }
 
         body {
@@ -26,37 +25,42 @@
             margin: 0;
             padding: 0;
             -webkit-font-smoothing: antialiased;
-            overflow: hidden; /* 锁定主体，防止双击缩放或橡皮筋回弹导致的混乱 */
+            overflow: hidden; /* 锁定外层，禁止整体缩放和回弹 */
             height: 100vh;
             width: 100vw;
+            background-color: #121212; /* 预设背景色 */
         }
 
         #root {
             height: 100vh;
+            width: 100vw;
             display: flex;
             flex-direction: column;
             overflow: hidden;
         }
 
-        .glass-header {
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
+        /* 顶部状态栏：固定高度，不参与滚动 */
+        .app-header {
+            flex-shrink: 0;
             z-index: 1000;
             padding-top: var(--safe-top);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
 
-        .scroll-container {
+        /* 核心滚动区域：占据剩余所有空间 */
+        .scroll-content {
             flex: 1;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
-            /* 顶部避让：安全区 + 头部组件高度 */
-            padding-top: calc(var(--header-height) + var(--safe-top));
-            /* 底部避让：固定 80px 导航 + 安全区 */
-            padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 30px);
+            padding-bottom: calc(100px + var(--safe-bottom)); /* 确保底部避让导航栏 */
+        }
+
+        /* 底部导航栏：固定底部 */
+        .app-nav {
+            flex-shrink: 0;
+            padding-bottom: var(--safe-bottom);
+            z-index: 1000;
         }
 
         .no-scrollbar::-webkit-scrollbar {
